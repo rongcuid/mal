@@ -48,38 +48,37 @@
                      (recur reader' rforms')))))]
     (go reader nil)))
 
-(defn- read-bracketed-form [reader l r]
+(defn- read-bracketed-form-rest [reader l r]
   (let
-   [r' (rd-advance reader) ;; Consume left
-    {form :form r'' :reader} (read-form-until r' r)
-    r''' (rd-advance r'')]
-    {:form form :reader r'''}))
+   [{form :form r' :reader} (read-form-until reader r)
+    r'' (rd-advance r')]
+    {:form form :reader r''}))
 
-(defn- read-list [reader]
-  (read-bracketed-form reader "(" ")"))
+(defn- read-list-rest [reader]
+  (read-bracketed-form-rest reader "(" ")"))
 
-(defn- read-vector [reader]
-  (read-bracketed-form reader "[" "]"))
+(defn- read-vector-rest [reader]
+  (read-bracketed-form-rest reader "[" "]"))
 
-(defn- read-atom
+(defn- parse-atom
   "If a token is not a number, it's a symbol."
-  [reader]
-  (let [{token :token reader' :reader} (rd-next reader)
-        atom (if (re-find #"[^0-9]" token)
-               token
-               (Integer/parseInt token))]
-    {:form atom :reader reader'}))
+  [token]
+  (if (re-find #"[^0-9]" token)
+    token
+    (Integer/parseInt token)))
 
 (defn read-form
   "Top level form parsing."
   [reader]
-  (case (rd-peek reader)
-    "nil" (read-nil reader)
-    "true" (read-true reader)
-    "false" (read-false reader)
-    "(" (read-list reader)
-    "[" (read-vector reader)
-    (read-atom reader)))
+  (let
+   [{token :token reader :reader} (rd-next reader)]
+    (case token
+      "nil" (read-nil reader)
+      "true" (read-true reader)
+      "false" (read-false reader)
+      "(" (read-list-rest reader)
+      "[" (read-vector-rest reader)
+      {:form (parse-atom token) :reader reader})))
 
 (defn tokenize
   "Tokenizes a string into a sequence"
