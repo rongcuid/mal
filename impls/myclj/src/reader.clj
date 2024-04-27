@@ -2,45 +2,67 @@
   (:require [clojure.string :as string]))
 
 (defn rd-peek
-  "Peek the first token in reader"
+  "Peek and return the first token in reader"
   [reader]
   (-> reader :tokens first))
 
 (defn rd-advance
-  "Just advance token."
+  "Advance and return updated reader."
   [reader]
   (update reader :tokens next))
 
 (defn rd-next
-  "Get and advance token in reader.
-   Returns [token, updated reader]"
+  "Get token and advance reader."
   [reader]
-  [(rd-peek reader) (rd-advance reader)])
+  {:token (rd-peek reader)
+   :reader (rd-advance reader)})
 
+; Forward declare the top-level form
 (declare read-form)
 
+(defn read-return
+  "Advance reader and return result"
+  [reader result]
+  {:form result :reader (rd-advance reader)})
+
+(defn read-nil [reader]
+  (read-return reader nil))
+
+(defn read-true [reader]
+  (read-return reader true))
+
+(defn read-false [reader]
+  (read-return reader false))
+
 (defn read-list [reader]
-  (let [r' (rd-advance reader) ;; Consume '('
-        go (fn [reader rforms]
-             (case (rd-peek reader)
-               ")" (let [reader' (rd-advance reader)] ;; Consume ')'
-                     [(reverse rforms) reader'])
-               (let [[form reader'] (read-form reader)
-                     rforms' (cons form rforms)]
-                 (recur reader' rforms'))))]
+  (let
+   [r' (rd-advance reader) ;; Consume '('
+    go (fn [reader rforms]
+         (case (rd-peek reader)
+           nil (throw (IllegalArgumentException. "EOF"))
+           ")" (let [reader' (rd-advance reader)] ;; Consume ')'
+                 {:form (reverse rforms) :reader reader'})
+           (let [{form :form reader' :reader} (read-form reader)
+                 rforms' (cons form rforms)]
+             (recur reader' rforms'))))]
     (go r' nil)))
 
 (defn read-atom
   "If a token is not a number, it's a symbol."
   [reader]
-  (let [[token reader'] (rd-next reader)
+  (let [{token :token reader' :reader} (rd-next reader)
         atom (if (re-find #"[^0-9]" token)
                token
                (Integer/parseInt token))]
-    [atom reader']))
+    {:form atom :reader reader'}))
 
-(defn read-form [reader]
+(defn read-form
+  "Top level form parsing."
+  [reader]
   (case (rd-peek reader)
+    "nil" (read-nil reader)
+    "true" (read-true reader)
+    "false" (read-false reader)
     "(" (read-list reader)
     (read-atom reader)))
 
@@ -60,11 +82,15 @@
 (defn read-str
   "Creates a reader from string"
   [s]
-  (let [reader {:tokens (tokenize s)}
-        [form _] (read-form reader)]
-    form))
+  (try
+    (let [reader {:tokens (tokenize s)}]
+      (:form (read-form reader)))
+    (catch IllegalArgumentException e
+      (println (.getMessage e)))))
 
 (comment
+  (read-str "nil")
+  (read-str "true")
   (read-str "123")
   (read-str "   123 ")
   (read-str "abc")
@@ -76,4 +102,5 @@
   (read-str "(   + 2    (*  3  4))")
   (read-str "(123 abc)")
   (read-str ",1,,,")
+  (read-str "(")
   :rcf)
