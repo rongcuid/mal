@@ -47,14 +47,15 @@
 (defn tokenize
   "Tokenizes a string into a sequence"
   [s]
-  (let [m (re-seq
-           #"[\s,]*(~@|[\[\]{}()'`~^@]|\"(?:\\.|[^\\\"])*\"?|;.*|[^\s\[\]{}('\"`,;)]*)"
-           s)]
-    (->>
-     m
-     (map first)
-     (map string/trim)
-     (filter not-empty))))
+  (let [re #"[\s,]*(~@|[\[\]{}()'`~^@]|\"(?:\\.|[^\\\"])*\"?|;.*|[^\s\[\]{}('\"`,;)]*)"
+        go (fn [s rtokens]
+             (let [[consumed token] (re-find re s)]
+               (if (empty? token)
+                 (reverse rtokens)
+                 (recur
+                  (subs s (count consumed))
+                  (cons token rtokens)))))]
+    (go s nil)))
 
 (defn read-str
   "Creates a reader from string"
@@ -74,5 +75,5 @@
   (read-str "(+ 1 2)")
   (read-str "(   + 2    (*  3  4))")
   (read-str "(123 abc)")
-  (read-str ",1")
+  (read-str ",1,,,")
   :rcf)
