@@ -1,12 +1,17 @@
-(ns step1-read-print)
+(ns step1-read-print
+  (:require [reader :as r]
+            [printer :as p]))
 
-(defn repl-read [x] x)
+(defn repl-read [s]
+  (r/read-str s))
 
 (defn repl-eval [x] x)
 
-(defn repl-print [x] x)
+(defn repl-print [mal]
+  (p/pr-str mal))
 
-(defn repl-rep [x] x)
+(defn repl-rep [x]
+  (-> x repl-read repl-eval repl-print))
 
 (defn main
   []
