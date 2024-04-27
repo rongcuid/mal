@@ -25,3 +25,7 @@
         (recur)))))
 
 (defn -main [& args] (main))
+
+(comment
+  (repl-print (repl-read "(+ 1 2)"))
+  :rcf)

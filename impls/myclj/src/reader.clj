@@ -20,34 +20,48 @@
 ; Forward declare the top-level form
 (declare read-form)
 
-(defn read-return
+(defn- read-return
   "Advance reader and return result"
   [reader result]
   {:form result :reader (rd-advance reader)})
 
-(defn read-nil [reader]
+(defn- read-nil [reader]
   (read-return reader nil))
 
-(defn read-true [reader]
+(defn- read-true [reader]
   (read-return reader true))
 
-(defn read-false [reader]
+(defn- read-false [reader]
   (read-return reader false))
 
-(defn read-list [reader]
+(defn- read-form-until [reader until]
   (let
-   [r' (rd-advance reader) ;; Consume '('
-    go (fn [reader rforms]
-         (case (rd-peek reader)
-           nil (throw (IllegalArgumentException. "EOF"))
-           ")" (let [reader' (rd-advance reader)] ;; Consume ')'
-                 {:form (reverse rforms) :reader reader'})
-           (let [{form :form reader' :reader} (read-form reader)
-                 rforms' (cons form rforms)]
-             (recur reader' rforms'))))]
-    (go r' nil)))
+   [go (fn [reader rforms]
+         (let
+          [tk (rd-peek reader)]
+           (cond
+             (nil? tk) (throw (IllegalArgumentException. "EOF"))
+             (= until tk) {:form (reverse rforms) :reader reader}
+             :else (let
+                    [{form :form reader' :reader} (read-form reader)
+                     rforms' (cons form rforms)]
+                     (recur reader' rforms')))))]
+    (go reader nil)))
 
-(defn read-atom
+(defn- read-bracketed-form [reader l r]
+  (let
+   [r' (rd-advance reader) ;; Consume left
+    {form :form r'' :reader} (read-form-until r' r)
+    r''' (rd-advance r'')]
+    {:form form :reader r'''}))
+
+(defn- read-list [reader]
+  (read-bracketed-form reader "(" ")"))
+
+(defn- read-vector [reader]
+  (read-bracketed-form reader "[" "]"))
+
+(defn- read-atom
   "If a token is not a number, it's a symbol."
   [reader]
   (let [{token :token reader' :reader} (rd-next reader)
@@ -64,6 +78,7 @@
     "true" (read-true reader)
     "false" (read-false reader)
     "(" (read-list reader)
+    "[" (read-vector reader)
     (read-atom reader)))
 
 (defn tokenize
@@ -83,8 +98,9 @@
   "Creates a reader from string"
   [s]
   (try
-    (let [reader {:tokens (tokenize s)}]
-      (:form (read-form reader)))
+    (let [reader {:tokens (tokenize s)}
+          {form :form} (read-form reader)]
+      form)
     (catch IllegalArgumentException e
       (println (.getMessage e)))))
 
